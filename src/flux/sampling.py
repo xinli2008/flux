@@ -1,12 +1,10 @@
 import math
 from typing import Callable
-
 import numpy as np
 import torch
 from einops import rearrange, repeat
 from PIL import Image
 from torch import Tensor
-
 from .model import Flux
 from .modules.autoencoder import AutoEncoder
 from .modules.conditioner import HFEmbedder
@@ -38,22 +36,26 @@ def prepare(t5: HFEmbedder, clip: HFEmbedder, img: Tensor, prompt: str | list[st
     if bs == 1 and not isinstance(prompt, str):
         bs = len(prompt)
 
+    # process for image
     img = rearrange(img, "b c (h ph) (w pw) -> b (h w) (c ph pw)", ph=2, pw=2)
     if img.shape[0] == 1 and bs > 1:
         img = repeat(img, "1 ... -> bs ...", bs=bs)
 
+    # process for image_ids
     img_ids = torch.zeros(h // 2, w // 2, 3)
     img_ids[..., 1] = img_ids[..., 1] + torch.arange(h // 2)[:, None]
     img_ids[..., 2] = img_ids[..., 2] + torch.arange(w // 2)[None, :]
     img_ids = repeat(img_ids, "h w c -> b (h w) c", b=bs)
 
+    # process for text with t5 and text_ids
     if isinstance(prompt, str):
         prompt = [prompt]
-    txt = t5(prompt)
+    txt = t5(prompt)   # [b, 256, 4096]
     if txt.shape[0] == 1 and bs > 1:
         txt = repeat(txt, "1 ... -> bs ...", bs=bs)
     txt_ids = torch.zeros(bs, txt.shape[1], 3)
 
+    # process for text with clip
     vec = clip(prompt)
     if vec.shape[0] == 1 and bs > 1:
         vec = repeat(vec, "1 ... -> bs ...", bs=bs)
@@ -253,6 +255,7 @@ def denoise(
     img_cond: Tensor | None = None,
 ):
     # this is ignored for schnell
+    # NOTE: torch.full: create a tensor of size with fill_value
     guidance_vec = torch.full((img.shape[0],), guidance, device=img.device, dtype=img.dtype)
     for t_curr, t_prev in zip(timesteps[:-1], timesteps[1:]):
         t_vec = torch.full((img.shape[0],), t_curr, dtype=img.dtype, device=img.device)

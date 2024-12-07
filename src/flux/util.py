@@ -99,7 +99,7 @@ configs = {
         repo_id="black-forest-labs/FLUX.1-schnell",
         repo_flow="flux1-schnell.safetensors",
         repo_ae="ae.safetensors",
-        ckpt_path=os.getenv("FLUX_SCHNELL"),
+        ckpt_path="/data/lixin/practice/flux/pretrained_models/flux/flux1-schnell.safetensors",
         lora_path=None,
         params=FluxParams(
             in_channels=64,
@@ -355,15 +355,16 @@ def load_flow_model(
 
 def load_t5(device: str | torch.device = "cuda", max_length: int = 512) -> HFEmbedder:
     # max length 64, 128, 256 and 512 should work (if your sequence is short enough)
-    return HFEmbedder("google/t5-v1_1-xxl", max_length=max_length, torch_dtype=torch.bfloat16).to(device)
+    return HFEmbedder("/data/lixin/practice/flux/pretrained_models/t5", max_length=max_length, torch_dtype=torch.bfloat16).to(device)
 
 
 def load_clip(device: str | torch.device = "cuda") -> HFEmbedder:
-    return HFEmbedder("openai/clip-vit-large-patch14", max_length=77, torch_dtype=torch.bfloat16).to(device)
+    return HFEmbedder("/data/lixin/practice/flux/pretrained_models/clip-vit-large-patch14", max_length=77, torch_dtype=torch.bfloat16).to(device)
 
 
 def load_ae(name: str, device: str | torch.device = "cuda", hf_download: bool = True) -> AutoEncoder:
     ckpt_path = configs[name].ae_path
+    ckpt_path  = "/data/lixin/practice/flux/pretrained_models/flux/ae.safetensors"
     if (
         ckpt_path is None
         and configs[name].repo_id is not None

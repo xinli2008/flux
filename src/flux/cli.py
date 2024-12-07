@@ -3,11 +3,9 @@ import re
 import time
 from dataclasses import dataclass
 from glob import iglob
-
 import torch
 from fire import Fire
 from transformers import pipeline
-
 from flux.sampling import denoise, get_noise, get_schedule, prepare, unpack
 from flux.util import configs, load_ae, load_clip, load_flow_model, load_t5, save_image
 
@@ -127,7 +125,7 @@ def main(
         guidance: guidance value used for guidance distillation
         add_sampling_metadata: Add the prompt to the image Exif metadata
     """
-    nsfw_classifier = pipeline("image-classification", model="Falconsai/nsfw_image_detection", device=device)
+    nsfw_classifier = pipeline("image-classification", model="pretrained_models/nsfw_image_detection", device=device)
 
     if name not in configs:
         available = ", ".join(configs.keys())
@@ -177,15 +175,8 @@ def main(
         print(f"Generating with seed {opts.seed}:\n{opts.prompt}")
         t0 = time.perf_counter()
 
-        # prepare input
-        x = get_noise(
-            1,
-            opts.height,
-            opts.width,
-            device=torch_device,
-            dtype=torch.bfloat16,
-            seed=opts.seed,
-        )
+        # random noise
+        x = get_noise(1, opts.height, opts.width, device=torch_device, dtype=torch.bfloat16, seed=opts.seed,)
         opts.seed = None
         if offload:
             ae = ae.cpu()
@@ -229,10 +220,8 @@ def main(
         else:
             opts = None
 
-
 def app():
     Fire(main)
-
 
 # if __name__ == "__main__":
 #     app()
