@@ -43,6 +43,8 @@ def prepare(t5: HFEmbedder, clip: HFEmbedder, img: Tensor, prompt: str | list[st
 
     # process for image_ids
     img_ids = torch.zeros(h // 2, w // 2, 3)
+    # NOTE: flux.1将图像的位置编号设置为(0, i, j);
+    # 将通道维度的index=1存储高度信息, index=2存储宽度信息。 
     img_ids[..., 1] = img_ids[..., 1] + torch.arange(h // 2)[:, None]
     img_ids[..., 2] = img_ids[..., 2] + torch.arange(w // 2)[None, :]
     img_ids = repeat(img_ids, "h w c -> b (h w) c", b=bs)
@@ -53,6 +55,7 @@ def prepare(t5: HFEmbedder, clip: HFEmbedder, img: Tensor, prompt: str | list[st
     txt = t5(prompt)   # [b, 256, 4096]
     if txt.shape[0] == 1 and bs > 1:
         txt = repeat(txt, "1 ... -> bs ...", bs=bs)
+    # NOTE: flux.1将文本的位置编号设置为(0,0,0)
     txt_ids = torch.zeros(bs, txt.shape[1], 3)
 
     # process for text with clip
@@ -260,6 +263,7 @@ def denoise(
     for t_curr, t_prev in zip(timesteps[:-1], timesteps[1:]):
         t_vec = torch.full((img.shape[0],), t_curr, dtype=img.dtype, device=img.device)
         pred = model(
+            # NOTE: 如果是有image_condition, 会直接和img-latent拼接, 然后放入模型中
             img=torch.cat((img, img_cond), dim=-1) if img_cond is not None else img,
             img_ids=img_ids,
             txt=txt,
@@ -269,6 +273,15 @@ def denoise(
             guidance=guidance_vec,
         )
 
+        r"""
+        guidance-strength in flux.1:
+            在flux.1的去噪循环部分,没有用classifier-free guidance(CFG), 而是把guidance-strength当成了和timestep一样的
+        约束信息, 传入去噪模型transformer中。
+            cfg的本意是要过两次去噪模型, 一次输入为给定文本, 另一个输入为空文本。然后通过设置strength参数让模型远离空文本,
+        靠近给定文本。而在推理的时候, negative prompt就是一种基于cfg的技巧。把cfg中的空文本替换为negative prompt, 就可以让
+        模型靠近positive_prompt, 远离negative_prompt。
+            而在当前的flux中, guidance_scale会作为一个约束条件输入模型, 来表示输入文本和空文本之间的差距。
+        """
         img = img + (t_prev - t_curr) * pred
 
     return img

@@ -156,6 +156,7 @@ class DoubleStreamBlock(nn.Module):
         )
 
     def forward(self, img: Tensor, txt: Tensor, vec: Tensor, pe: Tensor) -> tuple[Tensor, Tensor]:
+        # get image modulation and text modulation
         img_mod1, img_mod2 = self.img_mod(vec)
         txt_mod1, txt_mod2 = self.txt_mod(vec)
 
@@ -174,6 +175,7 @@ class DoubleStreamBlock(nn.Module):
         txt_q, txt_k = self.txt_attn.norm(txt_q, txt_k, txt_v)
 
         # run actual attention
+        # 拼接image和text的q、k、v
         q = torch.cat((txt_q, img_q), dim=2)
         k = torch.cat((txt_k, img_k), dim=2)
         v = torch.cat((txt_v, img_v), dim=2)
@@ -225,6 +227,9 @@ class SingleStreamBlock(nn.Module):
         self.modulation = Modulation(hidden_size, double=False)
 
     def forward(self, x: Tensor, vec: Tensor, pe: Tensor) -> Tensor:
+        r"""
+        单流transformer模块, 把注意力和线性层之间的串联结构变成并联结构
+        """
         mod, _ = self.modulation(vec)
         x_mod = (1 + mod.scale) * self.pre_norm(x) + mod.shift
         qkv, mlp = torch.split(self.linear1(x_mod), [3 * self.hidden_size, self.mlp_hidden_dim], dim=-1)

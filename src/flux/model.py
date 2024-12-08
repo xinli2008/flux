@@ -100,19 +100,22 @@ class Flux(nn.Module):
         if self.params.guidance_embed:
             if guidance is None:
                 raise ValueError("Didn't get guidance strength for guidance distilled model.")
+            # NOTE: 如果当前模型支持guidance_embedding, 则guidance和timestep参数都会经过sinusoidal
             vec = vec + self.guidance_in(timestep_embedding(guidance, 256))
+        # NOTE: guidance_embedding(有时为空) + timestep_embedding + prompt_clip_embedding 结合在一起
         vec = vec + self.vector_in(y)
         txt = self.txt_in(txt)
 
+        # NOTE: 文本ids和图像ids结合在一起, 经过旋转位置编码rope
         ids = torch.cat((txt_ids, img_ids), dim=1)
         pe = self.pe_embedder(ids)
         
-        # NOTE: 双流注意力模块
+        # NOTE: 将图像特征、文本特征(T5_embedding)、vec特征(guidance_embedding + timestep_embedding + prompt_clip_embedding)、position_embedding
+        # 结合在一起, 放入双流transformer中
         for block in self.double_blocks:
             img, txt = block(img=img, txt=txt, vec=vec, pe=pe)
 
-        # NOTE: 单流注意力模块;
-        # 单流注意力模块只是比双流注意力模块少了一个文本信息。
+        # NOTE: 将文本信息和图像信息拼接后, 放入单流transformer模块;
         img = torch.cat((txt, img), 1)
         for block in self.single_blocks:
             img = block(img, vec=vec, pe=pe)
